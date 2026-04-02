@@ -110,3 +110,22 @@ All homepage content is driven by the front matter in `content/_index.md`:
 | Contact | `contact.email`, `contact.github`, `contact.linkedin` | Contact links |
 
 ---
+
+## CI/CD Pipeline
+
+![CI/CD](https://github.com/a-nasruddin/portofolio/actions/workflows/ci.yml/badge.svg)
+Every push to `main` triggers a three-stage GitHub Actions workflow:
+
+| Job | What it does |
+|---|---|
+| **Hugo Build Check** | Runs `hugo --minify --gc` to catch build errors before anything is published |
+| **Build & Push** | Builds the Docker image and pushes it to [GitHub Container Registry (GHCR)](https://ghcr.io) tagged with `latest` and the commit SHA |
+| **Update Manifest** | Automatically commits the new image tag back into `k8s/deployment.yaml` so the manifest stays in sync |
+
+### Pull the latest image
+
+```bash
+docker pull ghcr.io/a-nasruddin/portofolio:latest
+```
+
+---

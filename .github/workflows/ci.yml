@@ -1,0 +1,150 @@
+name: CI/CD — Build & Publish
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}   # e.g. your-username/portfolio
+
+jobs:
+  # ─────────────────────────────────────────────────────────
+  # Job 1: Validate Hugo build
+  # ─────────────────────────────────────────────────────────
+  hugo-build:
+    name: Hugo Build Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: "0.124.1"
+          extended: true
+
+      - name: Build site
+        run: hugo --minify --gc
+
+      - name: Upload built site artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hugo-public
+          path: public/
+          retention-days: 1
+
+  # ─────────────────────────────────────────────────────────
+  # Job 2: Build Docker image & push to GHCR
+  # Only runs on push to main (not on PRs)
+  # ─────────────────────────────────────────────────────────
+  docker-publish:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    needs: hugo-build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: read
+      packages: write     # Required to push to GHCR
+
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-tag: ${{ steps.meta.outputs.tags }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata (tags & labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # Tag with short SHA for traceability (e.g. sha-a1b2c3d)
+            type=sha,prefix=sha-,format=short
+            # Always tag latest on main
+            type=raw,value=latest,enable=true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Cache layers between runs for faster builds
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Image summary
+        run: |
+          echo "### 🐳 Docker Image Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Registry | \`${{ env.REGISTRY }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Digest | \`${{ steps.build.outputs.digest }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+
+  # ─────────────────────────────────────────────────────────
+  # Job 3: Update k8s deployment manifest with new image tag
+  # Commits the change back to main so your manifest stays
+  # in sync with the latest published image.
+  # ─────────────────────────────────────────────────────────
+  update-manifest:
+    name: Update K8s Manifest
+    runs-on: ubuntu-latest
+    needs: docker-publish
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: write   # Required to push the manifest update
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update image tag in deployment.yaml
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          NEW_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${SHORT_SHA}"
+
+          # Replace the image line in deployment.yaml
+          sed -i "s|image: .*|image: ${NEW_IMAGE}|" k8s/deployment.yaml
+
+          # Also switch imagePullPolicy to Always (image is now in a real registry)
+          sed -i "s|imagePullPolicy: Never|imagePullPolicy: Always|" k8s/deployment.yaml
+
+          echo "Updated image to: ${NEW_IMAGE}"
+          cat k8s/deployment.yaml
+
+      - name: Commit updated manifest
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add k8s/deployment.yaml
+          git diff --staged --quiet || git commit -m "ci: update image to sha-$(echo ${{ github.sha }} | cut -c1-7) [skip ci]"
+          git push
