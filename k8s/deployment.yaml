@@ -23,8 +23,8 @@ spec:
     spec:
       containers:
         - name: portfolio
-          image: portfolio:latest
-          imagePullPolicy: Never   # Use local image — no registry needed
+          image: ghcr.io/a-nasruddin/portofolio:sha-88f5e94
+          imagePullPolicy: Always   # Use local image — no registry needed
           ports:
             - containerPort: 80
               name: http
