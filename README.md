@@ -113,7 +113,7 @@ All homepage content is driven by the front matter in `content/_index.md`:
 
 ## CI/CD Pipeline
 
-![CI/CD](https://github.com/a-nasruddin/portofolio/actions/workflows/ci.yml/badge.svg)
+![CI/CD](https://github.com/a-nasruddin/portfolio/actions/workflows/ci.yml/badge.svg)
 Every push to `main` triggers a three-stage GitHub Actions workflow:
 
 | Job | What it does |
@@ -125,7 +125,7 @@ Every push to `main` triggers a three-stage GitHub Actions workflow:
 ### Pull the latest image
 
 ```bash
-docker pull ghcr.io/a-nasruddin/portofolio:latest
+docker pull ghcr.io/a-nasruddin/portfolio:latest
 ```
 
 ---
