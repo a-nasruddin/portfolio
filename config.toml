@@ -1,6 +1,6 @@
 baseURL = "/"
 languageCode = "en-us"
-title = "Akhmad Nasruddin | DevOps & Cloud Engineer"
+title = "Akhmad Nasruddin | DevOps, SRE & Cloud Engineer"
 theme = "devops-minimal"
 
 [params]

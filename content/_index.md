@@ -21,7 +21,7 @@ about:
 stats:
   - number: "9+"
     label: "Years Experience"
-  - number: "20+"
+  - number: "25+"
     label: "Projects Shipped"
 
 skills:
