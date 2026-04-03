@@ -9,7 +9,7 @@ hero:
   roles:
     - "DevOps Engineer"
     - "Site Reliability Engineer"
-    - "Cloud Architect"
+    - "Presales Engineer"
     - "Network Engineer"
     - "Infrastructure Engineer"
   description: "I build scalable infrastructure and automate everything in between. Passionate about cloud-native technologies, observability, and automation."
